@@ -125,6 +125,7 @@ enum InputType {
     BufReader(std::io::BufReader<std::fs::File>),
 }
 
+// TODO: Implement our own error type
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = main_app().get_matches();
 
@@ -182,7 +183,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .collect::<Result<Vec<_>, _>>()?;
                     let cursor = collection.aggregate(documents, None)?;
                     for result in cursor {
-                        println!("{}", result?);
+                        println!("{}", stringify_document(result?));
                     }
                 }
                 _ => {
@@ -196,8 +197,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(pipeline) = config.pipelines.into_iter().nth(index) {
                 let cursor = collection.aggregate(pipeline.stages, None)?;
                 for result in cursor {
-                    let result = stringify_document(result?);
-                    println!("{}", result);
+                    println!("{}", stringify_document(result?));
                 }
             } else {
                 return Err(format!(

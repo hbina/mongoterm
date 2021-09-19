@@ -46,16 +46,16 @@ Successfully inserted 10 documents with _id:
 hbina@akarin:~/git/magg$ cargo run -- --config-file ./demo-config.json aggregate --pipeline '[]'
     Finished dev [unoptimized + debuginfo] target(s) in 0.05s
      Running `target/debug/magg --config-file ./demo-config.json aggregate --pipeline '[]'`
-{ "_id": ObjectId("61474a8a18e446c5dcd760e4"), "loving": "1990-09-26" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760e5"), "icon": "2005-09-03" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760e6"), "for": "1997-08-19" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760e7"), "generators": "1993-09-29" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760e8"), "double": "2018-12-20" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760e9"), "choosing": "2020-08-16" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760ea"), "maintained": "1999-07-22" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760eb"), "merchant": "1999-05-31" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760ec"), "musicians": "1979-01-22" }
-{ "_id": ObjectId("61474a8a18e446c5dcd760ed"), "reel": "2005-05-01" }
+{ "_id": "61474a8a18e446c5dcd760e4", "loving": "1990-09-26" }
+{ "_id": "61474a8a18e446c5dcd760e5", "icon": "2005-09-03" }
+{ "_id": "61474a8a18e446c5dcd760e6", "for": "1997-08-19" }
+{ "_id": "61474a8a18e446c5dcd760e7", "generators": "1993-09-29" }
+{ "_id": "61474a8a18e446c5dcd760e8", "double": "2018-12-20" }
+{ "_id": "61474a8a18e446c5dcd760e9", "choosing": "2020-08-16" }
+{ "_id": "61474a8a18e446c5dcd760ea", "maintained": "1999-07-22" }
+{ "_id": "61474a8a18e446c5dcd760eb", "merchant": "1999-05-31" }
+{ "_id": "61474a8a18e446c5dcd760ec", "musicians": "1979-01-22" }
+{ "_id": "61474a8a18e446c5dcd760ed", "reel": "2005-05-01" }
 ```
 
 ### Save common pipelines in a configuration file
