@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,7 @@ pub fn main_app() -> clap::App<'static, 'static> {
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
         .subcommand(aggregate_app())
+        .subcommand(create_app())
         .arg(
             clap::Arg::with_name("connection-uri")
                 .long("connection-uri")
@@ -77,6 +78,14 @@ pub fn aggregate_app() -> clap::App<'static, 'static> {
         )
 }
 
+pub fn create_app() -> clap::App<'static, 'static> {
+    clap::App::new("create").arg(
+        clap::Arg::with_name("input-documents")
+            .help("The document(s) to be created in the collection")
+            .required(false),
+    )
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Pipeline {
     name: String,
@@ -90,6 +99,12 @@ pub struct Config {
     collection_name: String,
     database_name: String,
     pipelines: Vec<Pipeline>,
+}
+
+#[derive(Debug)]
+pub enum InsertResult {
+    One(mongodb::results::InsertOneResult),
+    Many(mongodb::results::InsertManyResult),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -178,6 +193,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         } else {
         }
+    } else if let Some(create_matches) = matches.subcommand_matches("create") {
+        let documents_str = create_matches
+            .value_of("input-documents")
+            .unwrap()
+            .to_string();
+        let doc = serde_json::Value::from_str(documents_str.as_str())?;
+        let result = match doc {
+            serde_json::Value::Array(v) => InsertResult::Many(collection.insert_many(v, None)?),
+            o => InsertResult::One(collection.insert_one(o, None)?),
+        };
+        match result {
+            InsertResult::One(o) => println!(
+                "Successfully inserted one document with id:{}",
+                o.inserted_id
+            ),
+            InsertResult::Many(m) => {
+                println!(
+                    "Successfully inserted {} document{} with _id:",
+                    m.inserted_ids.len(),
+                    if m.inserted_ids.len() > 1 { "s" } else { "" },
+                );
+                m.inserted_ids
+                    .values()
+                    .for_each(|s| println!("{}", stringify_bson(s)));
+            }
+        }
     } else {
         return Err("Only aggregation is supported at the moment".into());
     }
@@ -188,14 +229,15 @@ pub fn stringify_document(
     document: mongodb::bson::document::Document,
 ) -> mongodb::bson::document::Document {
     document
-        .into_iter()
-        .map(|(key, value)| (key, stringify_bson(value)))
+        .iter()
+        .map(|(key, value)| (key.clone(), stringify_bson(value)))
         .collect()
 }
 
-pub fn stringify_bson(document: mongodb::bson::Bson) -> mongodb::bson::Bson {
+pub fn stringify_bson(document: &mongodb::bson::Bson) -> mongodb::bson::Bson {
     match document {
+        mongodb::bson::Bson::ObjectId(id) => mongodb::bson::Bson::String(id.to_string()),
         mongodb::bson::Bson::DateTime(d) => mongodb::bson::Bson::String(d.to_chrono().to_rfc3339()),
-        o => o,
+        o => o.clone(),
     }
 }
