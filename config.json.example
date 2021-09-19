@@ -7,6 +7,17 @@
       "name": "get everything",
       "description": "gets everything from the collection",
       "stages": []
+    },
+    {
+      "name": "get everything",
+      "description": "gets everything from the collection",
+      "stages": [
+        {
+          "$project": {
+            "_id": 1
+          }
+        }
+      ]
     }
   ]
 }

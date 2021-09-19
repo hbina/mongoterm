@@ -79,12 +79,22 @@ pub fn aggregate_app() -> clap::App<'static, 'static> {
 }
 
 pub fn create_app() -> clap::App<'static, 'static> {
-    clap::App::new("create").arg(
-        clap::Arg::with_name("input-documents")
-            .help("The document(s) to be created in the collection")
-            .multiple(true)
-            .required(true),
-    )
+    clap::App::new("create")
+        .about("Insert documents into the collection")
+        .arg(
+            clap::Arg::with_name("input-documents")
+                .long("input-documents")
+                .help("Get the documents directly as an argument. Supports JSON lines")
+                .takes_value(true)
+                .required(false),
+        )
+        .arg(
+            clap::Arg::with_name("input-file")
+                .long("input-file")
+                .help("Get the documents from a file. Support JSON lines")
+                .takes_value(true)
+                .required(false),
+        )
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,6 +116,13 @@ pub struct Config {
 pub enum InsertResult {
     One(mongodb::results::InsertOneResult),
     Many(mongodb::results::InsertManyResult),
+}
+
+#[derive(Debug)]
+enum InputType {
+    Stdin(std::io::Stdin),
+    Arg(String),
+    BufReader(std::io::BufReader<std::fs::File>),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -150,7 +167,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
             });
         } else if let Some(pipeline_str) = aggregate_matches.value_of("pipeline") {
-            println!("Perform query using pipeline:\n{}", pipeline_str);
             let value = serde_json::from_str::<serde_json::Value>(pipeline_str)?;
             match value {
                 serde_json::Value::Array(pipeline) => {
@@ -195,13 +211,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
         }
     } else if let Some(create_matches) = matches.subcommand_matches("create") {
-        let documents_str = create_matches
-            .value_of("input-documents")
-            .unwrap()
-            .to_string();
-        let doc = serde_json::Deserializer::from_str(documents_str.as_str())
-            .into_iter::<serde_json::Value>()
-            .collect::<Result<Vec<_>, _>>()?;
+        let handle = if let Some(file) = create_matches.value_of("input-file") {
+            InputType::BufReader(std::io::BufReader::new(std::fs::File::open(file)?))
+        } else if let Some(arg) = create_matches.value_of("input-documents") {
+            // TODO: Possible to avoid allocation here?
+            InputType::Arg(arg.to_string())
+        } else if !atty::is(atty::Stream::Stdin) {
+            InputType::Stdin(std::io::stdin())
+        } else {
+            return Err("Please provide an input either by piping something in or specifying a file with '--input-file <file>'".into());
+        };
+        let doc = match handle {
+            InputType::Stdin(s) => create_values_from_reader(s.lock()),
+            InputType::Arg(s) => create_values_from_reader(std::io::BufReader::new(s.as_bytes())),
+            InputType::BufReader(b) => create_values_from_reader(b),
+        }?;
         let result = match doc.as_slice() {
             [doc] => InsertResult::One(collection.insert_one(doc, None)?),
             o => InsertResult::Many(collection.insert_many(o, None)?),
@@ -243,4 +267,24 @@ pub fn stringify_bson(document: &mongodb::bson::Bson) -> mongodb::bson::Bson {
         mongodb::bson::Bson::DateTime(d) => mongodb::bson::Bson::String(d.to_chrono().to_rfc3339()),
         o => o.clone(),
     }
+}
+
+pub fn create_values_from_reader<R>(
+    reader: R,
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>>
+where
+    R: std::io::BufRead,
+{
+    let mut vec = Vec::new();
+    for result in serde_json::Deserializer::from_reader(reader).into_iter::<serde_json::Value>() {
+        let value = result?;
+        match value {
+            serde_json::Value::Array(mut arr) => {
+                vec.reserve(arr.len());
+                vec.append(&mut arr)
+            }
+            o => vec.push(o),
+        }
+    }
+    Ok(vec)
 }
