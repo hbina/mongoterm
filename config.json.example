@@ -1,0 +1,12 @@
+{
+  "connection_uri": "mongodb://localhost:27017",
+  "database_name": "local",
+  "collection_name": "startup_log",
+  "pipelines": [
+    {
+      "name": "get everything",
+      "description": "gets everything from the collection",
+      "stages": []
+    }
+  ]
+}
