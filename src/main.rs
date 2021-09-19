@@ -164,7 +164,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(pipeline) = config.pipelines.into_iter().nth(index) {
                 let cursor = collection.aggregate(pipeline.stages, None)?;
                 for result in cursor {
-                    println!("{}", result?);
+                    let result = stringify_document(result?);
+                    println!("{}", result);
                 }
             } else {
                 return Err(format!(
@@ -181,4 +182,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Only aggregation is supported at the moment".into());
     }
     Ok(())
+}
+
+pub fn stringify_document(
+    document: mongodb::bson::document::Document,
+) -> mongodb::bson::document::Document {
+    document
+        .into_iter()
+        .map(|(key, value)| (key, stringify_bson(value)))
+        .collect()
+}
+
+pub fn stringify_bson(document: mongodb::bson::Bson) -> mongodb::bson::Bson {
+    match document {
+        mongodb::bson::Bson::DateTime(d) => mongodb::bson::Bson::String(d.to_chrono().to_rfc3339()),
+        o => o,
+    }
 }
