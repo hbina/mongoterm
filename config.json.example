@@ -1,7 +1,7 @@
 {
   "connection_uri": "mongodb://localhost:27017",
-  "database_name": "local",
-  "collection_name": "startup_log",
+  "database_name": "database-name",
+  "collection_name": "collection-name",
   "pipelines": [
     {
       "name": "get everything",

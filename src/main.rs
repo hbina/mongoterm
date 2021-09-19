@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::convert::TryFrom;
 
 use serde::{Deserialize, Serialize};
 
@@ -82,7 +82,8 @@ pub fn create_app() -> clap::App<'static, 'static> {
     clap::App::new("create").arg(
         clap::Arg::with_name("input-documents")
             .help("The document(s) to be created in the collection")
-            .required(false),
+            .multiple(true)
+            .required(true),
     )
 }
 
@@ -198,15 +199,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .value_of("input-documents")
             .unwrap()
             .to_string();
-        let doc = serde_json::Value::from_str(documents_str.as_str())?;
-        let result = match doc {
-            serde_json::Value::Array(v) => InsertResult::Many(collection.insert_many(v, None)?),
-            o => InsertResult::One(collection.insert_one(o, None)?),
+        let doc = serde_json::Deserializer::from_str(documents_str.as_str())
+            .into_iter::<serde_json::Value>()
+            .collect::<Result<Vec<_>, _>>()?;
+        let result = match doc.as_slice() {
+            [doc] => InsertResult::One(collection.insert_one(doc, None)?),
+            o => InsertResult::Many(collection.insert_many(o, None)?),
         };
         match result {
             InsertResult::One(o) => println!(
-                "Successfully inserted one document with id:{}",
-                o.inserted_id
+                "Successfully inserted one document with _id:{}\n",
+                stringify_bson(&o.inserted_id)
             ),
             InsertResult::Many(m) => {
                 println!(
@@ -220,7 +223,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     } else {
-        return Err("Only aggregation is supported at the moment".into());
+        return Err("Operation is not supported".into());
     }
     Ok(())
 }
