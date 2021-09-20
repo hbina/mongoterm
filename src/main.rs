@@ -11,6 +11,8 @@ pub fn main_app() -> clap::App<'static, 'static> {
         .subcommand(create_app())
         .subcommand(find_app())
         .subcommand(find_one_app())
+        .subcommand(delete_many_app())
+        .subcommand(delete_one_app())
         .arg(
             clap::Arg::with_name("connection-uri")
                 .long("connection-uri")
@@ -115,8 +117,28 @@ pub fn find_args() -> Vec<clap::Arg<'static, 'static>> {
 }
 
 pub fn find_one_app() -> clap::App<'static, 'static> {
-    clap::App::new("findOne")
-        .about("find the first document that matches the given filter")
+    clap::App::new("find-one")
+        .about("Find the first document that matches the given filter")
+        .args(&find_args())
+}
+
+pub fn delete_args() -> Vec<clap::Arg<'static, 'static>> {
+    vec![clap::Arg::with_name("input-filter")
+        .long("input-filter")
+        .help("The filter to be applied")
+        .takes_value(true)
+        .required(false)]
+}
+
+pub fn delete_many_app() -> clap::App<'static, 'static> {
+    clap::App::new("delete-many")
+        .about("Delete the documents that match the given filter")
+        .args(&find_args())
+}
+
+pub fn delete_one_app() -> clap::App<'static, 'static> {
+    clap::App::new("delete-one")
+        .about("Delete the first document that matches the given filter")
         .args(&find_args())
 }
 
@@ -242,7 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "There are only {} pipeline{} available. \
                 Note that it is 0-indexed",
                     pipeline_count,
-                    if pipeline_count > 1 { "s" } else { "" },
+                    if pipeline_count == 1 { "" } else { "s" },
                 )
                 .into());
             }
@@ -288,7 +310,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "Successfully inserted {} document{} with _id:",
                     m.inserted_ids.len(),
-                    if m.inserted_ids.len() > 1 { "s" } else { "" },
+                    if m.inserted_ids.len() == 1 { "" } else { "s" },
                 );
                 m.inserted_ids
                     .values()
@@ -338,6 +360,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             println!("No such documents");
         }
+    } else if let Some(delete_one_matches) = matches.subcommand_matches("delete-one") {
+        let delete_one_filter = delete_one_matches
+            .value_of("input-filter")
+            .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
+            .transpose()?
+            .map(|v| convert_json_value_to_bson_document(&v))
+            .flatten()
+            .unwrap_or_default();
+        let cursor = collection
+            .delete_one(delete_one_filter, None)?
+            .deleted_count;
+        println!(
+            "Deleted {} document{}",
+            cursor,
+            if cursor == 1 { "" } else { "s" }
+        );
+    } else if let Some(delete_many_matches) = matches.subcommand_matches("delete-many") {
+        let delete_many_filter = delete_many_matches
+            .value_of("input-filter")
+            .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
+            .transpose()?
+            .map(|v| convert_json_value_to_bson_document(&v))
+            .flatten()
+            .unwrap_or_default();
+        let cursor = collection
+            .delete_many(delete_many_filter, None)?
+            .deleted_count;
+        println!(
+            "Deleted {} document{}",
+            cursor,
+            if cursor == 1 { "" } else { "s" }
+        );
     } else if let Some(subcommand) = matches.subcommand_name() {
         return Err(format!(
             "There are no subcommand '{}'. Please see --help",
