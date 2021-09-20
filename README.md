@@ -94,9 +94,9 @@ hbina@akarin:~/git/magg$ cat config.json.example
 ## Help
 
 ```shell
-hbina@akarin:~/git/magg$ cargo run -- help
+hbina@akarin:~/git/magg$ cargo run -- --help
     Finished dev [unoptimized + debuginfo] target(s) in 0.05s
-     Running `target/debug/magg help`
+     Running `target/debug/magg --help`
 magg 0.1.0
 
 
@@ -115,7 +115,11 @@ OPTIONS:
         --database-name <database-name>
 
 SUBCOMMANDS:
-    aggregate    Perform aggregation on a collection
-    create       Insert documents into the collection
-    help         Prints this message or the help of the given subcommand(s)
+    aggregate      Perform aggregation on a collection
+    create         Insert documents into the collection
+    delete-many    Delete the documents that match the given filter
+    delete-one     Delete the first document that matches the given filter
+    find           find all the documents that matches the given filter
+    find-one       Find the first document that matches the given filter
+    help           Prints this message or the help of the given subcommand(s)
 ```
