@@ -9,6 +9,8 @@ pub fn main_app() -> clap::App<'static, 'static> {
         .about(clap::crate_description!())
         .subcommand(aggregate_app())
         .subcommand(create_app())
+        .subcommand(find_app())
+        .subcommand(find_one_app())
         .arg(
             clap::Arg::with_name("connection-uri")
                 .long("connection-uri")
@@ -97,6 +99,41 @@ pub fn create_app() -> clap::App<'static, 'static> {
         )
 }
 
+pub fn find_args() -> Vec<clap::Arg<'static, 'static>> {
+    vec![
+        clap::Arg::with_name("input-filter")
+            .long("input-filter")
+            .help("The filter to be applied")
+            .takes_value(true)
+            .required(false),
+        clap::Arg::with_name("project")
+            .long("project")
+            .help("Project the resulting documents")
+            .takes_value(true)
+            .required(false),
+    ]
+}
+
+pub fn find_one_app() -> clap::App<'static, 'static> {
+    clap::App::new("findOne")
+        .about("find the first document that matches the given filter")
+        .args(&find_args())
+}
+
+pub fn find_app() -> clap::App<'static, 'static> {
+    let mut args = find_args();
+    args.push(
+        clap::Arg::with_name("limit")
+            .long("limit")
+            .help("Limit the result to N documents")
+            .takes_value(true)
+            .required(false),
+    );
+    clap::App::new("find")
+        .about("find all the documents that matches the given filter")
+        .args(&args)
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Pipeline {
     name: String,
@@ -151,7 +188,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let client = mongodb::sync::Client::with_uri_str(&config.connection_uri)?;
     let database = client.database(&config.database_name);
-    let collection = database.collection::<serde_json::Value>(&config.collection_name);
+    let collection =
+        database.collection::<mongodb::bson::document::Document>(&config.collection_name);
 
     if let Some(aggregate_matches) = matches.subcommand_matches("aggregate") {
         if aggregate_matches.is_present("list") {
@@ -183,7 +221,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .collect::<Result<Vec<_>, _>>()?;
                     let cursor = collection.aggregate(documents, None)?;
                     for result in cursor {
-                        println!("{}", stringify_document(result?));
+                        println!("{}", stringify_document(&result?));
                     }
                 }
                 _ => {
@@ -197,7 +235,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(pipeline) = config.pipelines.into_iter().nth(index) {
                 let cursor = collection.aggregate(pipeline.stages, None)?;
                 for result in cursor {
-                    println!("{}", stringify_document(result?));
+                    println!("{}", stringify_document(&result?));
                 }
             } else {
                 return Err(format!(
@@ -227,8 +265,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             InputType::BufReader(b) => create_values_from_reader(b),
         }?;
         let result = match doc.as_slice() {
-            [doc] => InsertResult::One(collection.insert_one(doc, None)?),
-            o => InsertResult::Many(collection.insert_many(o, None)?),
+            [doc] => InsertResult::One(collection.insert_one(
+                convert_json_value_to_bson_document(doc).expect("Only documents can be inserted"),
+                None,
+            )?),
+            o => InsertResult::Many(
+                collection.insert_many(
+                    o.iter()
+                        .map(|s| convert_json_value_to_bson_document(s))
+                        .collect::<Option<Vec<_>>>()
+                        .expect("Only documents can be inserted"),
+                    None,
+                )?,
+            ),
         };
         match result {
             InsertResult::One(o) => println!(
@@ -246,14 +295,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .for_each(|s| println!("{}", stringify_bson(s)));
             }
         }
+    } else if let Some(find_matches) = matches.subcommand_matches("find") {
+        let find_filter = find_matches
+            .value_of("input-filter")
+            .map(|s| mongodb::bson::from_slice(s.as_bytes()))
+            .transpose()?;
+        let find_limit = find_matches
+            .value_of("limit")
+            .map(|s| i64::from_str_radix(s, 10))
+            .transpose()?;
+        let find_project = find_matches
+            .value_of("project")
+            .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
+            .transpose()?
+            .map(|v| convert_json_value_to_bson_document(&v))
+            .unwrap_or_default();
+        let find_options = mongodb::options::FindOptions::builder()
+            .limit(find_limit)
+            .projection(find_project)
+            .build();
+        let cursor = collection.find(find_filter, find_options)?;
+        for result in cursor {
+            println!("{}", stringify_document(&result?));
+        }
+    } else if let Some(find_one_matches) = matches.subcommand_matches("findOne") {
+        let find_filter = find_one_matches
+            .value_of("input-filter")
+            .map(|s| mongodb::bson::from_slice(s.as_bytes()))
+            .transpose()?;
+        let find_project = find_one_matches
+            .value_of("project")
+            .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
+            .transpose()?
+            .map(|v| convert_json_value_to_bson_document(&v))
+            .unwrap_or_default();
+        let find_one_options = mongodb::options::FindOneOptions::builder()
+            .projection(find_project)
+            .build();
+        let cursor = collection.find_one(find_filter, find_one_options)?;
+        if let Some(result) = cursor {
+            println!("{}", stringify_document(&result));
+        } else {
+            println!("No such documents");
+        }
+    } else if let Some(subcommand) = matches.subcommand_name() {
+        return Err(format!(
+            "There are no subcommand '{}'. Please see --help",
+            subcommand
+        )
+        .into());
     } else {
-        return Err("Operation is not supported".into());
+        main_app().print_long_help()?;
     }
     Ok(())
 }
 
 pub fn stringify_document(
-    document: mongodb::bson::document::Document,
+    document: &mongodb::bson::document::Document,
 ) -> mongodb::bson::document::Document {
     document
         .iter()
@@ -287,4 +385,37 @@ where
         }
     }
     Ok(vec)
+}
+
+pub fn convert_json_value_to_bson_document(
+    json: &serde_json::Value,
+) -> Option<mongodb::bson::Document> {
+    match json {
+        serde_json::Value::Object(o) => Some(
+            o.iter()
+                .map(|s| (s.0.clone(), convert_json_to_bson(s.1)))
+                .collect::<mongodb::bson::Document>(),
+        ),
+        _ => None,
+    }
+}
+
+pub fn convert_json_to_bson(json: &serde_json::Value) -> mongodb::bson::Bson {
+    match json {
+        serde_json::Value::Null => mongodb::bson::Bson::Null,
+        serde_json::Value::Bool(b) => mongodb::bson::Bson::Boolean(*b),
+        serde_json::Value::Number(n) => mongodb::bson::Bson::Double(
+            n.as_f64()
+                .expect("Cannot convert JSON number to BSON double"),
+        ),
+        serde_json::Value::String(s) => mongodb::bson::Bson::String(s.clone()),
+        serde_json::Value::Array(v) => {
+            mongodb::bson::Bson::Array(v.iter().map(convert_json_to_bson).collect())
+        }
+        serde_json::Value::Object(o) => mongodb::bson::Bson::Document(
+            o.iter()
+                .map(|s| (s.0.clone(), convert_json_to_bson(s.1)))
+                .collect::<mongodb::bson::Document>(),
+        ),
+    }
 }
