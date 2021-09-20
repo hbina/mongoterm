@@ -1,6 +1,7 @@
 # magg
 
 Perform queries/updates on MongoDB collections through the command-line!
+Simple wrapper over [mongo-rust-driver](https://github.com/mongodb/mongo-rust-driver).
 
 ## Demo
 
