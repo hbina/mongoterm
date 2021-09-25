@@ -2,6 +2,45 @@ use std::convert::TryFrom;
 
 use serde::{Deserialize, Serialize};
 
+mod keywords {
+    pub const INPUT_FILTER: &'static str = "input-filter";
+    pub const CONNECTION_URI: &'static str = "connection-uri";
+    pub const DATABASE_NAME: &'static str = "database-name";
+    pub const COLLECTION_NAME: &'static str = "collection-name";
+    pub const PIPELINE: &'static str = "pipeline";
+    pub const INPUT_DOCUMENTS: &'static str = "input-documents";
+    pub const INPUT_FILE: &'static str = "input-file";
+    pub const PROJECT: &'static str = "project";
+    pub const PIPELINE_INDEX: &'static str = "pipeline-index";
+    pub const LIST: &'static str = "list";
+    pub const LIMIT: &'static str = "limit";
+    pub const CONFIG_FILE: &'static str = "config-file";
+}
+
+enum MongoDbCommand {
+    Create,
+    Aggregate,
+    Find,
+    FindOne,
+    Count,
+    DeleteMany,
+    DeleteOne,
+}
+
+impl MongoDbCommand {
+    fn to_str(self) -> &'static str {
+        match self {
+            MongoDbCommand::Create => "create",
+            MongoDbCommand::Aggregate => "aggregate",
+            MongoDbCommand::Find => "find",
+            MongoDbCommand::FindOne => "find-one",
+            MongoDbCommand::Count => "count",
+            MongoDbCommand::DeleteOne => "delete",
+            MongoDbCommand::DeleteMany => "delete-many",
+        }
+    }
+}
+
 pub fn main_app() -> clap::App<'static, 'static> {
     clap::App::new(clap::crate_name!())
         .version(clap::crate_version!())
@@ -11,41 +50,42 @@ pub fn main_app() -> clap::App<'static, 'static> {
         .subcommand(create_app())
         .subcommand(find_app())
         .subcommand(find_one_app())
+        .subcommand(count_app())
         .subcommand(delete_many_app())
         .subcommand(delete_one_app())
         .arg(
-            clap::Arg::with_name("connection-uri")
-                .long("connection-uri")
+            clap::Arg::with_name(keywords::CONNECTION_URI)
+                .long(keywords::CONNECTION_URI)
                 .required(false)
                 .multiple(false)
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("collection-name")
-                .long("collection-name")
+            clap::Arg::with_name(keywords::COLLECTION_NAME)
+                .long(keywords::COLLECTION_NAME)
                 .required(false)
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("database-name")
-                .long("database-name")
+            clap::Arg::with_name(keywords::DATABASE_NAME)
+                .long(keywords::DATABASE_NAME)
                 .required(false)
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("config-file")
-                .long("config-file")
+            clap::Arg::with_name(keywords::CONFIG_FILE)
+                .long(keywords::CONFIG_FILE)
                 .required(false)
                 .takes_value(true),
         )
 }
 
 pub fn aggregate_app() -> clap::App<'static, 'static> {
-    clap::App::new("aggregate")
+    clap::App::new(MongoDbCommand::Aggregate.to_str())
         .about("Perform aggregation on a collection")
         .arg(
-            clap::Arg::with_name("pipeline")
-                .long("pipeline")
+            clap::Arg::with_name(keywords::PIPELINE)
+                .long(keywords::PIPELINE)
                 .help("The pipeline to be executed as a string")
                 .required(false)
                 .takes_value(true),
@@ -61,8 +101,8 @@ pub fn aggregate_app() -> clap::App<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("pipeline-index")
-                .long("pipeline-index")
+            clap::Arg::with_name(keywords::PIPELINE_INDEX)
+                .long(keywords::PIPELINE_INDEX)
                 .help(
                     "Index of the pipeline to be called. \
                     See --list",
@@ -71,30 +111,30 @@ pub fn aggregate_app() -> clap::App<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("list")
+            clap::Arg::with_name(keywords::LIST)
                 .help(
                     "List all available pipelines from the configuration file. \
                     Will be empty if '--config-file' is not passed. \
                     In this case, please pass the pipeline directly to be executed through '--pipeline'",
                 )
-                .long("list")
+                .long(keywords::LIST)
                 .required(false),
         )
 }
 
 pub fn create_app() -> clap::App<'static, 'static> {
-    clap::App::new("create")
+    clap::App::new(MongoDbCommand::Create.to_str())
         .about("Insert documents into the collection")
         .arg(
-            clap::Arg::with_name("input-documents")
-                .long("input-documents")
+            clap::Arg::with_name(keywords::INPUT_DOCUMENTS)
+                .long(keywords::INPUT_DOCUMENTS)
                 .help("Get the documents directly as an argument. Supports JSON lines")
                 .takes_value(true)
                 .required(false),
         )
         .arg(
-            clap::Arg::with_name("input-file")
-                .long("input-file")
+            clap::Arg::with_name(keywords::INPUT_FILE)
+                .long(keywords::INPUT_FILE)
                 .help("Get the documents from a file. Support JSON lines")
                 .takes_value(true)
                 .required(false),
@@ -103,13 +143,13 @@ pub fn create_app() -> clap::App<'static, 'static> {
 
 pub fn find_args() -> Vec<clap::Arg<'static, 'static>> {
     vec![
-        clap::Arg::with_name("input-filter")
-            .long("input-filter")
+        clap::Arg::with_name(keywords::INPUT_FILTER)
+            .long(keywords::INPUT_FILTER)
             .help("The filter to be applied")
             .takes_value(true)
             .required(false),
-        clap::Arg::with_name("project")
-            .long("project")
+        clap::Arg::with_name(keywords::PROJECT)
+            .long(keywords::PROJECT)
             .help("Project the resulting documents")
             .takes_value(true)
             .required(false),
@@ -117,41 +157,53 @@ pub fn find_args() -> Vec<clap::Arg<'static, 'static>> {
 }
 
 pub fn find_one_app() -> clap::App<'static, 'static> {
-    clap::App::new("find-one")
-        .about("Find the first document that matches the given filter")
+    clap::App::new(MongoDbCommand::FindOne.to_str())
+        .about("Find the first document that matches a given filter")
         .args(&find_args())
 }
 
+pub fn count_app() -> clap::App<'static, 'static> {
+    clap::App::new(MongoDbCommand::Count.to_str())
+        .about("Returns the number of documents that match a given filter")
+        .arg(
+            clap::Arg::with_name(keywords::INPUT_FILTER)
+                .long(keywords::INPUT_FILTER)
+                .help("The filter to be applied")
+                .takes_value(true)
+                .required(false),
+        )
+}
+
 pub fn delete_args() -> Vec<clap::Arg<'static, 'static>> {
-    vec![clap::Arg::with_name("input-filter")
-        .long("input-filter")
+    vec![clap::Arg::with_name(keywords::INPUT_FILTER)
+        .long(keywords::INPUT_FILTER)
         .help("The filter to be applied")
         .takes_value(true)
         .required(false)]
 }
 
 pub fn delete_many_app() -> clap::App<'static, 'static> {
-    clap::App::new("delete-many")
-        .about("Delete the documents that match the given filter")
+    clap::App::new(MongoDbCommand::DeleteMany.to_str())
+        .about("Delete the documents that match a given filter")
         .args(&find_args())
 }
 
 pub fn delete_one_app() -> clap::App<'static, 'static> {
-    clap::App::new("delete-one")
-        .about("Delete the first document that matches the given filter")
+    clap::App::new(MongoDbCommand::DeleteOne.to_str())
+        .about("Delete the first document that matches a given filter")
         .args(&find_args())
 }
 
 pub fn find_app() -> clap::App<'static, 'static> {
     let mut args = find_args();
     args.push(
-        clap::Arg::with_name("limit")
-            .long("limit")
+        clap::Arg::with_name(keywords::LIMIT)
+            .long(keywords::LIMIT)
             .help("Limit the result to N documents")
             .takes_value(true)
             .required(false),
     );
-    clap::App::new("find")
+    clap::App::new(MongoDbCommand::Find.to_str())
         .about("find all the documents that matches the given filter")
         .args(&args)
 }
@@ -188,14 +240,14 @@ enum InputType {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = main_app().get_matches();
 
-    let config = if let Some(config_file) = matches.value_of("config-file") {
+    let config = if let Some(config_file) = matches.value_of(keywords::CONFIG_FILE) {
         let file = std::fs::File::open(config_file)?;
         serde_json::from_reader(file)?
     } else {
         match (
-            matches.value_of("connection-uri"),
-            matches.value_of("database-name"),
-            matches.value_of("collection-name"),
+            matches.value_of(keywords::CONNECTION_URI),
+            matches.value_of(keywords::DATABASE_NAME),
+            matches.value_of(keywords::COLLECTION_NAME),
         ) {
             (Some(connection_uri), Some(database_name), Some(collection_name)) => Config {
                 connection_uri: connection_uri.into(),
@@ -213,8 +265,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let collection =
         database.collection::<mongodb::bson::document::Document>(&config.collection_name);
 
-    if let Some(aggregate_matches) = matches.subcommand_matches("aggregate") {
-        if aggregate_matches.is_present("list") {
+    if let Some(aggregate_matches) = matches.subcommand_matches(MongoDbCommand::Aggregate.to_str())
+    {
+        if aggregate_matches.is_present(keywords::LIST) {
             // TODO: Improve this to print using a table? But is it queryable?
             config.pipelines.iter().enumerate().for_each(|(idx, p)| {
                 println!(
@@ -227,7 +280,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap_or_default()
                 )
             });
-        } else if let Some(pipeline_str) = aggregate_matches.value_of("pipeline") {
+        } else if let Some(pipeline_str) = aggregate_matches.value_of(keywords::PIPELINE) {
             let value = serde_json::from_str::<serde_json::Value>(pipeline_str)?;
             match value {
                 serde_json::Value::Array(pipeline) => {
@@ -250,7 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Err("Aggregation pipeline must be an array".into());
                 }
             };
-        } else if let Some(pipeline_index) = aggregate_matches.value_of("pipeline-index") {
+        } else if let Some(pipeline_index) = aggregate_matches.value_of(keywords::PIPELINE_INDEX) {
             let index = usize::from_str_radix(pipeline_index, 10)?;
             let pipeline_count = config.pipelines.len();
 
@@ -270,10 +323,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         } else {
         }
-    } else if let Some(create_matches) = matches.subcommand_matches("create") {
-        let handle = if let Some(file) = create_matches.value_of("input-file") {
+    } else if let Some(create_matches) = matches.subcommand_matches(MongoDbCommand::Create.to_str())
+    {
+        let handle = if let Some(file) = create_matches.value_of(keywords::INPUT_FILE) {
             InputType::BufReader(std::io::BufReader::new(std::fs::File::open(file)?))
-        } else if let Some(arg) = create_matches.value_of("input-documents") {
+        } else if let Some(arg) = create_matches.value_of(keywords::INPUT_DOCUMENTS) {
             // TODO: Possible to avoid allocation here?
             InputType::Arg(arg.to_string())
         } else if !atty::is(atty::Stream::Stdin) {
@@ -317,17 +371,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .for_each(|s| println!("{}", stringify_bson(s)));
             }
         }
-    } else if let Some(find_matches) = matches.subcommand_matches("find") {
+    } else if let Some(find_matches) = matches.subcommand_matches(MongoDbCommand::Find.to_str()) {
         let find_filter = find_matches
-            .value_of("input-filter")
+            .value_of(keywords::INPUT_FILTER)
             .map(|s| mongodb::bson::from_slice(s.as_bytes()))
             .transpose()?;
         let find_limit = find_matches
-            .value_of("limit")
+            .value_of(keywords::LIMIT)
             .map(|s| i64::from_str_radix(s, 10))
             .transpose()?;
         let find_project = find_matches
-            .value_of("project")
+            .value_of(keywords::PROJECT)
             .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
             .transpose()?
             .map(|v| convert_json_value_to_bson_document(&v))
@@ -340,13 +394,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for result in cursor {
             println!("{}", stringify_document(&result?));
         }
-    } else if let Some(find_one_matches) = matches.subcommand_matches("findOne") {
+    } else if let Some(find_one_matches) =
+        matches.subcommand_matches(MongoDbCommand::FindOne.to_str())
+    {
         let find_filter = find_one_matches
-            .value_of("input-filter")
+            .value_of(keywords::INPUT_FILTER)
             .map(|s| mongodb::bson::from_slice(s.as_bytes()))
             .transpose()?;
         let find_project = find_one_matches
-            .value_of("project")
+            .value_of(keywords::PROJECT)
             .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
             .transpose()?
             .map(|v| convert_json_value_to_bson_document(&v))
@@ -360,9 +416,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             println!("No such documents");
         }
-    } else if let Some(delete_one_matches) = matches.subcommand_matches("delete-one") {
+    } else if let Some(delete_one_matches) =
+        matches.subcommand_matches(MongoDbCommand::DeleteOne.to_str())
+    {
         let delete_one_filter = delete_one_matches
-            .value_of("input-filter")
+            .value_of(keywords::INPUT_FILTER)
             .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
             .transpose()?
             .map(|v| convert_json_value_to_bson_document(&v))
@@ -376,9 +434,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cursor,
             if cursor == 1 { "" } else { "s" }
         );
-    } else if let Some(delete_many_matches) = matches.subcommand_matches("delete-many") {
+    } else if let Some(delete_many_matches) =
+        matches.subcommand_matches(MongoDbCommand::DeleteMany.to_str())
+    {
         let delete_many_filter = delete_many_matches
-            .value_of("input-filter")
+            .value_of(keywords::INPUT_FILTER)
             .map(|s| serde_json::from_slice::<serde_json::Value>(s.as_bytes()))
             .transpose()?
             .map(|v| convert_json_value_to_bson_document(&v))
@@ -392,6 +452,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cursor,
             if cursor == 1 { "" } else { "s" }
         );
+    } else if let Some(count_matches) = matches.subcommand_matches(MongoDbCommand::Count.to_str()) {
+        let count_filter = count_matches
+            .value_of(keywords::INPUT_FILTER)
+            .map(|s| mongodb::bson::from_slice(s.as_bytes()))
+            .transpose()?;
+        let count_options = mongodb::options::CountOptions::builder().build();
+        let count = collection.count_documents(count_filter, count_options)?;
+        println!("{}", count);
     } else if let Some(subcommand) = matches.subcommand_name() {
         return Err(format!(
             "There are no subcommand '{}'. Please see --help",
