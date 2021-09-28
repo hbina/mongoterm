@@ -1,5 +1,7 @@
 use std::convert::TryFrom;
 
+use prettytable::{Cell, Row, Table};
+
 use crate::shared::{keywords, stringify_document, Config, MongoDbCommand};
 
 pub fn aggregate_app() -> clap::App<'static, 'static> {
@@ -53,18 +55,24 @@ pub fn handler(
     let collection =
         database.collection::<mongodb::bson::document::Document>(&config.collection_name);
     if aggregate_matches.is_present(keywords::LIST) {
-        // TODO: Improve this to print using a table? But is it queryable?
-        config.pipelines.iter().enumerate().for_each(|(idx, p)| {
-            println!(
-                "{}. {} {}",
-                idx,
-                p.name,
-                p.description
-                    .as_ref()
-                    .map(|s| format!("=> {}", s))
-                    .unwrap_or_default()
-            )
-        });
+        let mut table = Table::new();
+        table.add_row(Row::new(vec![
+            Cell::new("Index"),
+            Cell::new("Name"),
+            Cell::new("Description"),
+        ]));
+        for (idx, p) in config.pipelines.iter().enumerate() {
+            let description = match &p.description {
+                crate::shared::PipelineDescription::OneLine(s) => s.clone(),
+                crate::shared::PipelineDescription::MultiLine(v) => v.join("\n"),
+            };
+            table.add_row(Row::new(vec![
+                Cell::new(format!("{}", idx).as_str()),
+                Cell::new(p.name.as_str()),
+                Cell::new(description.as_str()),
+            ]));
+        }
+        table.printstd();
     } else if let Some(pipeline_str) = aggregate_matches.value_of(keywords::PIPELINE) {
         let value = serde_json::from_str::<serde_json::Value>(pipeline_str)?;
         match value {

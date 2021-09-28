@@ -42,9 +42,16 @@ impl MongoDbCommand {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum PipelineDescription {
+    OneLine(String),
+    MultiLine(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Pipeline {
     pub name: String,
-    pub description: Option<String>,
+    pub description: PipelineDescription,
     pub stages: Vec<mongodb::bson::document::Document>,
 }
 
