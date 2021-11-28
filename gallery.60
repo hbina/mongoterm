@@ -1,0 +1,90 @@
+import { ScrollView, Button, CheckBox, SpinBox, Slider, GroupBox, LineEdit, ListView,
+    ComboBox, HorizontalBox, VerticalBox, GridBox, TabWidget, TextEdit, AboutSixtyFPS } from "sixtyfps_widgets.60";
+
+App := Window {
+    title: "Pinky Pie";
+
+    property <[string]> mongodb-databases: [];
+    property <[string]> mongodb-collections: [];
+    property <[string]> mongodb-documents: [];
+    property <bool> mongodb-url-input-enabled: true;
+    property <bool> mongodb-database-combobox-enabled: false;
+    property <bool> mongodb-collection-combobox-enabled: false;
+    property <bool> mongodb-run-query-button-enabled: false;
+    property <string> mongodb-url-input-text: "mongodb://localhost:27017";
+
+    callback mongodb-url-edited(string);
+    callback mongodb-url-clicked();
+    callback mongodb-database-clicked(string);
+    callback mongodb-collection-clicked(string);
+    callback mongodb-run-query-clicked();
+    
+    VerticalBox {
+        HorizontalBox {
+            GroupBox {
+                title: "MongoDB URL";
+                height: 50px;
+                LineEdit {
+                    text: mongodb-url-input-text;
+                    enabled: mongodb-url-input-enabled;
+                    edited(text) => {
+                        mongodb-url-edited(text);
+                    }
+                }
+
+                Button {
+                    text : "Connect";
+                    enabled: mongodb-url-input-enabled;
+                    clicked() => {
+                        mongodb-url-clicked();
+                    }
+                }
+            }
+        }
+
+        HorizontalBox {
+            ComboBox {
+                width: preferred-width;
+                height: 30px;
+                model: mongodb-databases;
+                enabled: mongodb-database-combobox-enabled;
+                current-value: "Please select a table";
+                selected(string) => {
+                    mongodb-database-clicked(string)
+                }
+            }
+        }
+
+        HorizontalBox {
+            ComboBox {
+                width: preferred-width;
+                height: 30px;
+                model: mongodb-collections;
+                enabled: mongodb-collection-combobox-enabled;
+                current-value: "Please select a collection";
+                selected(string) => {
+                    mongodb-collection-clicked(string)
+                }
+            }
+
+            Button {
+                text: "Open";
+                enabled: mongodb-run-query-button-enabled;
+                clicked() => {
+                    mongodb-run-query-clicked();
+                }
+            }
+        }
+
+        HorizontalBox {
+            ListView {
+                for data in mongodb-documents : GridLayout {
+                        Text {
+                        width: parent.width;
+                        text: data;
+                    }
+                }
+            }
+        }
+    }
+}

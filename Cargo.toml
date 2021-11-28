@@ -2,6 +2,7 @@
 name = "magg"
 version = "0.1.0"
 edition = "2018"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,8 +10,13 @@ edition = "2018"
 atty = "0.2.14"
 chrono = "0.4.19"
 clap = "2.33.3"
-mongodb = { version = "2.0.0", default-features = false, features = ["sync", "bson-chrono-0_4"] }
+mongodb = { version = "2.0.2", default-features = false, features = ["sync", "bson-chrono-0_4"] }
 prettytable-rs = "0.8.0"
 serde = { version = "1.0.130", features = ["derive"] }
-serde_json = "1.0.68"
+serde_json = "1.0.72"
+sixtyfps = "0.1.5"
+
+
+[build-dependencies]
+sixtyfps-build = "0.1.5"
 

@@ -195,3 +195,58 @@ pub fn convert_json_to_bson(json: &serde_json::Value) -> mongodb::bson::Bson {
         ),
     }
 }
+
+pub fn pretty_print_document(document: &mongodb::bson::Document) -> String {
+    pretty_print_document_impl(document, 1)
+}
+
+fn pretty_print_document_impl(document: &mongodb::bson::Document, depth: usize) -> String {
+    format!(
+        "{{\n{}\n}}",
+        document
+            .iter()
+            .map(|(key, value)| {
+                format!(
+                    "{}{}: {}",
+                    std::iter::repeat("  ").take(depth).collect::<String>(),
+                    key,
+                    pretty_print_bson(value, depth + 1)
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n"),
+    )
+}
+
+fn pretty_print_bson(bson: &mongodb::bson::Bson, depth: usize) -> String {
+    match bson {
+        mongodb::bson::Bson::Double(d) => format!("{}", d),
+        mongodb::bson::Bson::String(s) => format!("{}", s),
+        mongodb::bson::Bson::Array(v) => v
+            .iter()
+            .map(|b| pretty_print_bson(b, depth + 1))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        mongodb::bson::Bson::Document(d) => pretty_print_document_impl(d, depth + 1),
+        mongodb::bson::Bson::Boolean(b) => format!("{}", b),
+        mongodb::bson::Bson::Null => "null".to_string(),
+        mongodb::bson::Bson::RegularExpression(e) => {
+            // TODO: Update this to print as a object instead?
+            e.pattern.to_string()
+        }
+        mongodb::bson::Bson::JavaScriptCode(c) => c.clone(),
+        mongodb::bson::Bson::JavaScriptCodeWithScope(c) => c.code.clone(),
+        mongodb::bson::Bson::Int32(i) => format!("{}", i),
+        mongodb::bson::Bson::Int64(i) => format!("{}", i),
+        mongodb::bson::Bson::Timestamp(t) => format!("{}", t.time),
+        mongodb::bson::Bson::Binary(_) => todo!(),
+        mongodb::bson::Bson::ObjectId(_) => todo!(),
+        mongodb::bson::Bson::DateTime(d) => format!("{}", d),
+        mongodb::bson::Bson::Symbol(_) => todo!(),
+        mongodb::bson::Bson::Decimal128(_) => todo!(),
+        mongodb::bson::Bson::Undefined => todo!(),
+        mongodb::bson::Bson::MaxKey => todo!(),
+        mongodb::bson::Bson::MinKey => todo!(),
+        mongodb::bson::Bson::DbPointer(_) => todo!(),
+    }
+}
